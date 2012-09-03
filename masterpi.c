@@ -16,14 +16,12 @@ const int compute_tag=1;
 const int stop_tag=2;
 const int masterproc = 0;
 const int req_tag = 3;
-const int allprocessors = 99;
-const int anyprocessor = 100;
 
 /* Vars globales */
 int numprocs = 0;
 int bes_paralelo = 0;
 int rank, namelen;  /* variables que usa MPI */
-long niter = 1000000; /* numero de iteraciones fijo para calcular */
+long niter = 1000; /* numero de iteraciones fijo para calcular */
 char processor_name[MPI_MAX_PROCESSOR_NAME];
 unsigned long i,j;
 
@@ -99,16 +97,18 @@ void proceso_esclavo()
   MPI_Status stat;
 
   printf("[%s] [%s] Proceso ESCLAVO %d de %d\n",timestamp(),processor_name,rank,numprocs);
-  /* send(Pmaster, req_tag) */
   MPI_Send(&suma,1,MPI_DOUBLE,masterproc,req_tag,MPI_COMM_WORLD);
- /* recv(xr, &n, Pmaster, source_tag) */
+  printf("ESCLAVO Recien enviado mensaje %f, %d\n",suma,masterproc); 
   n=numprocs*2;
-  MPI_Recv(&xr, n,MPI_DOUBLE,masterproc,MPI_ANY_TAG, MPI_COMM_WORLD,&stat);
+  MPI_Recv(xr, n,MPI_DOUBLE,masterproc,MPI_ANY_TAG, MPI_COMM_WORLD,&stat);
   source_tag = stat.MPI_TAG;
+  printf(" ESCLAVO, antes del while, sourcetag=%d\n",source_tag);
   while (source_tag == compute_tag)
   {
-    for (i=0;i<numprocs;i++)
+    suma = 0;
+    for (i=0;i<(numprocs-1);i++)
     {
+       printf("Dentro del for del esclavo, para sumar\n");
        ind = i*2;
        x=xr[ind];
        y=xr[ind+1];
@@ -117,10 +117,9 @@ void proceso_esclavo()
           suma = suma + z;
     }
 
-    /* send(Pmaster, req_tag) */
     MPI_Send(&suma,1,MPI_DOUBLE,masterproc,req_tag,MPI_COMM_WORLD);
-    /* recv(xr, &n, Pmaster, source_tag) */
-    MPI_Recv(&xr, n, MPI_DOUBLE, masterproc, source_tag, MPI_COMM_WORLD, &stat);
+    printf("ESCLAVO recien envie la suma %f\n",suma);
+    MPI_Recv(xr, n, MPI_DOUBLE, masterproc, source_tag, MPI_COMM_WORLD, &stat);
   }
   /* reduce_add(&suma, Pgroup) */
 }
@@ -128,39 +127,53 @@ void proceso_esclavo()
 void proceso_maestro()
 {
   /* Mapear */
-  double suma=0, sumesclavo;
-  unsigned long ind;
+  double suma=0, sumesclavo, x, y;
+  unsigned long ind, numesclavos;
   MPI_Status stat;
   int source=0;
 
   double* rands = (double*) malloc(2*numprocs*sizeof(double));
   srand(SEMILLA);
+  numesclavos = numprocs - 1;
+
+  if (numesclavos==0)
+  {
+    printf("[%s] Abortando proceso MASTER, no hay esclavos disponibles",timestamp());
+    return;
+  }
 
   printf("[%s] [%s] Proceso MASTER %d de %d\n",timestamp(),processor_name,rank,numprocs);
 
   for (i=0;i<(niter/numprocs);i++)
   {
-    for (j=0;j<numprocs;j++)
+    printf("MAESTRO iteracion No %lu de %lu\n\n",i, (niter/numprocs));
+    for (j=1;j<numprocs;j++)  /* Va a repartir solo a los esclavos, proceso 1 en delante */
     {
-       ind = (2*j);
-       rands[ind]=rand()/RAND_MAX; /* valor de X */
-       rands[ind+1]=rand()/RAND_MAX; /* valor de Y */
+       ind = (2*(j-1));
+       x=(double)rand()/RAND_MAX; /* valor de X */
+       printf("x=%f ",x);
+       rands[ind] = x;
+       y=(double)rand()/RAND_MAX; /* valor de Y */
+       printf("y=%f \n",y);
+       rands[ind+1]=y;
     }
     MPI_Recv(&sumesclavo,1,MPI_DOUBLE,MPI_ANY_SOURCE,req_tag,MPI_COMM_WORLD,&stat);
     if (stat.MPI_TAG == req_tag)
     {
-       printf("Recibe suma parcial %f\n",sumesclavo);
+       printf("MASTER Recibe suma parcial %f, tag %d, fuente %d\n",sumesclavo, stat.MPI_TAG, stat.MPI_SOURCE);
        suma+=sumesclavo;
        source = stat.MPI_SOURCE;
-       MPI_Send(rands,numprocs*2,MPI_DOUBLE,source,compute_tag,MPI_COMM_WORLD);
+       MPI_Send(rands,sizeof(rands),MPI_DOUBLE,source,compute_tag,MPI_COMM_WORLD);
+       printf("MASTER envia el arreglo rands, tamano %d\n",sizeof(rands));
     }
   }
 
   /* Tumbar a todos los slaves */
   for (i=1;i<numprocs;i++)
   {
-     MPI_Recv(&suma,1,MPI_DOUBLE,i,req_tag,MPI_COMM_WORLD,&stat);
-     MPI_Send(&suma,1,MPI_DOUBLE,i,stop_tag,MPI_COMM_WORLD);
+     printf("Mandando tumbar los procesos\n");
+     MPI_Recv(&sumesclavo,1,MPI_DOUBLE,i,req_tag,MPI_COMM_WORLD,&stat);
+     MPI_Send(&sumesclavo,1,MPI_DOUBLE,i,stop_tag,MPI_COMM_WORLD);
   }
   /* Reducir */
   /* reduce_add(&suma, Pgroup) */
