@@ -1,4 +1,4 @@
-#include <stdlib.h>     
+#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
 #include <time.h>
@@ -44,12 +44,12 @@ float valorPI(long niter)
       if (z<=1) count++;   /* va contando los puntos que satisfacen x-cuadrada + y-cuadrada <= 1 */
       }
 	  
-   /* Como los puntos van sumando pi sobre 4, pi vale  count por 4 */	  
-   pi=(double)count/niter*4;  
+   /* Como los puntos van sumando pi sobre 4, pi vale  count por 4 */
+   pi=(double)count/niter*4;
    printf("[%s] Termina calculo...\n",timestamp());
    return (pi);
 }
-	
+
 int main()
 {
    long niter = 0;
@@ -61,4 +61,3 @@ int main()
    
     return (0);
 }
-
