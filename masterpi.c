@@ -15,6 +15,9 @@
 const int compute_tag=1;
 const int stop_tag=2;
 const int masterproc = 0;
+const int req_tag = 3;
+const int allprocessors = 99;
+const int anyprocessor = 100;
 
 /* Vars globales */
 int numprocs = 0;
@@ -95,11 +98,16 @@ void proceso_esclavo()
   int n;
   double xr[numprocs*2];
   int source_tag;
+  MPI_Status stat;
   /* send(Pmaster, req_tag) */
-  /* recv(xr, &n, Pmaster, source_tag) */
+  MPI_Send(&suma,1,MPI_DOUBLE,masterproc,req_tag,MPI_COMM_WORLD);
+ /* recv(xr, &n, Pmaster, source_tag) */
+  n=numprocs*2;
+  MPI_Recv(&xr, n,MPI_DOUBLE,masterproc,MPI_ANY_TAG, MPI_COMM_WORLD,&stat);
+  source_tag = stat.MPI_TAG;
   while (source_tag == compute_tag)
   {
-    for (i=0;i<n;i++)
+    for (i=0;i<numprocs;i++)
     {
        ind = i*2;
        x=xr[ind];
@@ -108,8 +116,11 @@ void proceso_esclavo()
        if (z<=1)
           suma = suma + z;
     }
+
     /* send(Pmaster, req_tag) */
+    MPI_Send(&suma,1,MPI_DOUBLE,masterproc,req_tag,MPI_COMM_WORLD);
     /* recv(xr, &n, Pmaster, source_tag) */
+    MPI_Recv(&xr, n, MPI_DOUBLE, masterproc, source_tag, MPI_COMM_WORLD, &stat);
   }
   /* reduce_add(&suma, Pgroup) */
 }
@@ -120,6 +131,8 @@ void proceso_maestro()
   double rands[2*numprocs];
   double suma;
   unsigned long ind;
+  MPI_Status stat;
+  int source=0;
 
   srand(SEMILLA);
 
@@ -131,17 +144,19 @@ void proceso_maestro()
        rands[ind]=rand()/RAND_MAX; /* valor de X */
        rands[ind+1]=rand()/RAND_MAX; /* valor de Y */
     }
-    /* implementar recv(Pany, req_tag, Psource) */
-    printf("Mock call to recv\n");
-    /* implementar send(rands, &numprocs, Psource, compute_tag) */
-    printf("Mock call to send\n");
+    MPI_Recv(&suma,1,MPI_DOUBLE,MPI_ANY_SOURCE,req_tag,MPI_COMM_WORLD,&stat);
+    if (stat.MPI_TAG == req_tag)
+    {
+       source = stat.MPI_SOURCE;
+       MPI_Send(rands,numprocs*2,MPI_DOUBLE,source,compute_tag,MPI_COMM_WORLD);
+    }
   }
 
   /* Tumbar a todos los slaves */
   for (i=1;i<numprocs;i++)
   {
-     /* recv(Pi,req_tag); */
-     /* send(Pi, stop_tag */
+     MPI_Recv(&suma,1,MPI_DOUBLE,i,req_tag,MPI_COMM_WORLD,&stat);
+     MPI_Send(&suma,1,MPI_DOUBLE,i,stop_tag,MPI_COMM_WORLD);
   }
   /* Reducir */
   suma = 0;
