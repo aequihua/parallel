@@ -96,7 +96,7 @@ void proceso_esclavo()
   double x,y,z;
   unsigned long ind;
   int n;
-  double xr[numprocs*2];
+  double* xr = (double*) malloc(numprocs*2*sizeof(double));
   int source_tag;
   MPI_Status stat;
   /* send(Pmaster, req_tag) */
@@ -128,12 +128,12 @@ void proceso_esclavo()
 void proceso_maestro()
 {
   /* Mapear */
-  double rands[2*numprocs];
-  double suma;
+  double suma=0, sumesclavo;
   unsigned long ind;
   MPI_Status stat;
   int source=0;
 
+  double* rands = (double*) malloc(2*numprocs*sizeof(double));
   srand(SEMILLA);
 
   for (i=0;i<(niter/numprocs);i++)
@@ -144,9 +144,11 @@ void proceso_maestro()
        rands[ind]=rand()/RAND_MAX; /* valor de X */
        rands[ind+1]=rand()/RAND_MAX; /* valor de Y */
     }
-    MPI_Recv(&suma,1,MPI_DOUBLE,MPI_ANY_SOURCE,req_tag,MPI_COMM_WORLD,&stat);
+    MPI_Recv(&sumesclavo,1,MPI_DOUBLE,MPI_ANY_SOURCE,req_tag,MPI_COMM_WORLD,&stat);
     if (stat.MPI_TAG == req_tag)
     {
+       printf("Recibe suma parcial %f\n",sumesclavo);
+       suma+=sumesclavo;
        source = stat.MPI_SOURCE;
        MPI_Send(rands,numprocs*2,MPI_DOUBLE,source,compute_tag,MPI_COMM_WORLD);
     }
@@ -159,8 +161,8 @@ void proceso_maestro()
      MPI_Send(&suma,1,MPI_DOUBLE,i,stop_tag,MPI_COMM_WORLD);
   }
   /* Reducir */
-  suma = 0;
   /* reduce_add(&suma, Pgroup) */
+  printf("El valor de Pi en proceso paralelo = %f\n",suma);
 }
 
 int main()
