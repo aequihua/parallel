@@ -50,8 +50,6 @@ void init_mpi()
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);  /* que proceso soy yo */
     MPI_Get_processor_name(processor_name, &namelen);  /* como me llamo yo */
-
-    printf("[%s] [%s] Proceso MASTER no. %d de %d\n", timestamp(),processor_name, rank, numprocs);
 }
 
 void end_mpi()
@@ -99,6 +97,8 @@ void proceso_esclavo()
   double* xr = (double*) malloc(numprocs*2*sizeof(double));
   int source_tag;
   MPI_Status stat;
+
+  printf("[%s] [%s] Proceso ESCLAVO %d de %d\n",timestamp(),processor_name,rank,numprocs);
   /* send(Pmaster, req_tag) */
   MPI_Send(&suma,1,MPI_DOUBLE,masterproc,req_tag,MPI_COMM_WORLD);
  /* recv(xr, &n, Pmaster, source_tag) */
@@ -135,6 +135,8 @@ void proceso_maestro()
 
   double* rands = (double*) malloc(2*numprocs*sizeof(double));
   srand(SEMILLA);
+
+  printf("[%s] [%s] Proceso MASTER %d de %d\n",timestamp(),processor_name,rank,numprocs);
 
   for (i=0;i<(niter/numprocs);i++)
   {
