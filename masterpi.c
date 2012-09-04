@@ -130,7 +130,7 @@ void proceso_esclavo()
 void proceso_maestro()
 {
   /* Mapear */
-  double x, y;
+  double x, y, pi;
   unsigned long count, cntesclavo;
   unsigned long ind, numesclavos;
   MPI_Status stat;
@@ -182,7 +182,10 @@ void proceso_maestro()
   }
   /* Reducir */
   /* reduce_add(&suma, Pgroup) */
-  printf("El valor de Pi en proceso paralelo = %f\n",suma);
+  
+  printf("Count = %lu, niter = %lu",count,niter);
+  pi = (double)(count / niter*4);
+  printf("El valor de Pi en proceso paralelo = %f\n",pi);
 }
 
 int main()
