@@ -21,7 +21,7 @@ const int req_tag = 3;
 int numprocs = 0;
 int bes_paralelo = 0;
 int rank, namelen;  /* variables que usa MPI */
-long niter = 1000; /* numero de iteraciones fijo para calcular */
+long niter = 10000000; /* numero de iteraciones fijo para calcular */
 char processor_name[MPI_MAX_PROCESSOR_NAME];
 unsigned long i,j;
 
@@ -91,25 +91,22 @@ void proceso_esclavo()
   double suma=0;
   double x,y,z;
   unsigned long ind;
-  unsigned long n,count;
+  unsigned long n,count=0;
   double* xr = (double*) malloc(numprocs*2*sizeof(double));
   int source_tag;
   MPI_Status stat;
 
   printf("[%s] [%s] Proceso ESCLAVO %d de %d\n",timestamp(),processor_name,rank,numprocs);
-  MPI_Send(&count,1,MPI_LONG,masterproc,req_tag,MPI_COMM_WORLD);
-  printf("ESCLAVO Recien enviado mensaje %f, %d\n",suma,masterproc); 
+  MPI_Send(&count,1,MPI_UNSIGNED_LONG,masterproc,req_tag,MPI_COMM_WORLD);
   n=numprocs*2;
   MPI_Recv(xr, n,MPI_DOUBLE,masterproc,MPI_ANY_TAG, MPI_COMM_WORLD,&stat);
   source_tag = stat.MPI_TAG;
-  printf(" ESCLAVO, antes del while, sourcetag=%d\n",source_tag);
   while (source_tag == compute_tag)
   {
     suma = 0;
     count=0;
     for (i=0;i<(numprocs-1);i++)
     {
-       printf("Dentro del for del esclavo, para sumar\n");
        ind = i*2;
        x=xr[ind];
        y=xr[ind+1];
@@ -120,11 +117,10 @@ void proceso_esclavo()
         }
     }
 
-    MPI_Send(&count,1,MPI_LONG,masterproc,req_tag,MPI_COMM_WORLD);
-    printf("ESCLAVO recien envie la suma %f\n",suma);
-    MPI_Recv(xr, n, MPI_DOUBLE, masterproc, source_tag, MPI_COMM_WORLD, &stat);
+    MPI_Send(&count,1,MPI_UNSIGNED_LONG,masterproc,req_tag,MPI_COMM_WORLD);
+    MPI_Recv(xr, n, MPI_DOUBLE, masterproc,MPI_ANY_TAG, MPI_COMM_WORLD, &stat);
+    source_tag = stat.MPI_TAG;
   }
-  /* reduce_add(&suma, Pgroup) */
 }
 
 void proceso_maestro()
@@ -151,41 +147,34 @@ void proceso_maestro()
 
   for (i=0;i<(niter/numprocs);i++)
   {
-    printf("MAESTRO iteracion No %lu de %lu\n\n",i, (niter/numprocs));
     for (j=1;j<numprocs;j++)  /* Va a repartir solo a los esclavos, proceso 1 en delante */
     {
        ind = (2*(j-1));
        x=(double)rand()/RAND_MAX; /* valor de X */
-       printf("x=%f ",x);
        rands[ind] = x;
        y=(double)rand()/RAND_MAX; /* valor de Y */
-       printf("y=%f \n",y);
        rands[ind+1]=y;
     }
-    MPI_Recv(&cntesclavo,1,MPI_LONG,MPI_ANY_SOURCE,req_tag,MPI_COMM_WORLD,&stat);
+    MPI_Recv(&cntesclavo,1,MPI_UNSIGNED_LONG,MPI_ANY_SOURCE,req_tag,MPI_COMM_WORLD,&stat);
     if (stat.MPI_TAG == req_tag)
     {
-       printf("MASTER Recibe suma parcial %lu, tag %d, fuente %d\n",cntesclavo, stat.MPI_TAG, stat.MPI_SOURCE);
        count+=cntesclavo;
        source = stat.MPI_SOURCE;
        MPI_Send(rands,sizeof(rands),MPI_DOUBLE,source,compute_tag,MPI_COMM_WORLD);
-       printf("MASTER envia el arreglo rands, tamano %d\n",sizeof(rands));
     }
   }
 
   /* Tumbar a todos los slaves */
   for (i=1;i<numprocs;i++)
   {
-     printf("Mandando tumbar los procesos\n");
-     MPI_Recv(&cntesclavo,1,MPI_LONG,i,req_tag,MPI_COMM_WORLD,&stat);
-     MPI_Send(&cntesclavo,1,MPI_LONG,i,stop_tag,MPI_COMM_WORLD);
+     MPI_Recv(&cntesclavo,1,MPI_UNSIGNED_LONG,i,req_tag,MPI_COMM_WORLD,&stat);
+     MPI_Send(&cntesclavo,1,MPI_UNSIGNED_LONG,i,stop_tag,MPI_COMM_WORLD);
   }
   /* Reducir */
   /* reduce_add(&suma, Pgroup) */
   
-  printf("Count = %lu, niter = %lu",count,niter);
-  pi = (double)(count / niter*4);
-  printf("El valor de Pi en proceso paralelo = %f\n",pi);
+  pi = (double) count/niter;
+  printf("[%s] El valor de Pi en proceso paralelo = %f\n",timestamp(),pi*4.0);
 }
 
 int main()
