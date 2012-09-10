@@ -17,16 +17,18 @@ const int max = 10;
 /* Funciones globales */
 char *timestamp()
 {
+    char buf[256];
     time_t clock = time(NULL);
-    return (ctime(&clock));
+    strcpy(buf,ctime(&clock));
+    buf[strlen(buf)-1]='\0';
+    return (buf);
 }
 
-
 /* funciones principales	*/
-float valorPI(long niter)
+float valorPI(unsigned long niter)
 {
    double x,y;
-   long i,count=0; /* # of points in the 1st quadrant of unit circle */
+   unsigned long i,count=0; /* # of points in the 1st quadrant of unit circle */
    double z;
    double pi;
 
@@ -52,10 +54,7 @@ float valorPI(long niter)
 
 int main()
 {
-   long niter = 0;
-   
-   printf("Enter the number of iterations used to estimate pi: ");
-   scanf("%d",&niter);
+   unsigned long niter = 100000000;
 
    printf("[%s] Valor de pi es %f...\n",timestamp(), valorPI(niter));
    

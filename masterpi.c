@@ -8,7 +8,7 @@
 
 /* Version paralela (MASTER y ESCLAVO) del programa que calcula Pi usando metodos Montecarlo */
 /* Esta version usa Handshaking */
-/*  Autor: Arturo Equihua
+/*  Autor: Arturo Equihua - Equipo NP3
     Fecha:  30 de agosto de 2012  */
 
 /* Constantes */
@@ -16,20 +16,24 @@ const int compute_tag=1;
 const int stop_tag=2;
 const int masterproc = 0;
 const int req_tag = 3;
+unsigned long niter = 100000000; /* numero de iteraciones fijo para calcular */
+unsigned long bucket = 1000000; /* numero de elementos a procesar por esclavo */
 
 /* Vars globales */
 int numprocs = 0;
 int bes_paralelo = 0;
 int rank, namelen;  /* variables que usa MPI */
-long niter = 10000000; /* numero de iteraciones fijo para calcular */
 char processor_name[MPI_MAX_PROCESSOR_NAME];
 unsigned long i,j;
 
 /* Funciones globales */
 char *timestamp()
 {
+    char buf[256];
     time_t clock = time(NULL);
-    return (ctime(&clock));
+    strcpy(buf,ctime(&clock));
+    buf[strlen(buf)-1]='\0';
+    return (buf);
 }
 
 void init_mpi()
@@ -88,32 +92,31 @@ void  proceso_secuencial()
 
 void proceso_esclavo()
 {
-  double suma=0;
   double x,y,z;
   unsigned long ind;
   unsigned long n,count=0;
-  double* xr = (double*) malloc(numprocs*2*sizeof(double));
+  double* xr = (double*) malloc(bucket*2*sizeof(double));
   int source_tag;
   MPI_Status stat;
 
   printf("[%s] [%s] Proceso ESCLAVO %d de %d\n",timestamp(),processor_name,rank,numprocs);
   MPI_Send(&count,1,MPI_UNSIGNED_LONG,masterproc,req_tag,MPI_COMM_WORLD);
-  n=numprocs*2;
+  n=bucket*2;
   MPI_Recv(xr, n,MPI_DOUBLE,masterproc,MPI_ANY_TAG, MPI_COMM_WORLD,&stat);
   source_tag = stat.MPI_TAG;
   while (source_tag == compute_tag)
   {
-    suma = 0;
     count=0;
-    for (i=0;i<(numprocs-1);i++)
+    ind = 0;
+    for (i=0;i<bucket;i++)
     {
-       ind = i*2;
        x=xr[ind];
-       y=xr[ind+1];
+       ind++;
+       y=xr[ind];
+       ind++;
        z= x*x + y*y;
        if (z<=1)
         { count++; 
-          suma = suma + z;
         }
     }
 
@@ -132,7 +135,7 @@ void proceso_maestro()
   MPI_Status stat;
   int source=0;
 
-  double* rands = (double*) malloc(2*numprocs*sizeof(double));
+  double* rands = (double*) malloc(2*bucket*sizeof(double));
   srand(SEMILLA);
   numesclavos = numprocs - 1;
   count = 0;
@@ -145,15 +148,17 @@ void proceso_maestro()
 
   printf("[%s] [%s] Proceso MASTER %d de %d\n",timestamp(),processor_name,rank,numprocs);
 
-  for (i=0;i<(niter/numprocs);i++)
+  for (i=0;i<(niter/bucket);i++)
   {
-    for (j=1;j<numprocs;j++)  /* Va a repartir solo a los esclavos, proceso 1 en delante */
+    ind = 0;
+    for (j=0;j<bucket;j++)  /* Va a repartir solo a los esclavos, proceso 1 en delante */
     {
-       ind = (2*(j-1));
        x=(double)rand()/RAND_MAX; /* valor de X */
        rands[ind] = x;
+       ind++;
        y=(double)rand()/RAND_MAX; /* valor de Y */
-       rands[ind+1]=y;
+       rands[ind]=y;
+       ind++;
     }
     MPI_Recv(&cntesclavo,1,MPI_UNSIGNED_LONG,MPI_ANY_SOURCE,req_tag,MPI_COMM_WORLD,&stat);
     if (stat.MPI_TAG == req_tag)
@@ -171,7 +176,6 @@ void proceso_maestro()
      MPI_Send(&cntesclavo,1,MPI_UNSIGNED_LONG,i,stop_tag,MPI_COMM_WORLD);
   }
   /* Reducir */
-  /* reduce_add(&suma, Pgroup) */
   
   pi = (double) count/niter;
   printf("[%s] El valor de Pi en proceso paralelo = %f\n",timestamp(),pi*4.0);
